@@ -1,0 +1,11 @@
+# vscode settings folder
+.vscode
+
+# executable files
+*.a
+*.exe
+
+# binary files
+*.bin
+*.hex
+openssl-flight
