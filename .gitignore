@@ -8,4 +8,9 @@
 # binary files
 *.bin
 *.hex
-openssl-flight
+crypto-flight
+
+# build temp files
+build/
+obj/
+
