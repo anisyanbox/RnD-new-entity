@@ -8,7 +8,13 @@
 # binary files
 *.bin
 *.hex
+
+# crypto chalange binaries
 crypto-flight
+
+# trusted up binaries
+hello_ta
+ree_host_client
 
 # build temp files
 build/

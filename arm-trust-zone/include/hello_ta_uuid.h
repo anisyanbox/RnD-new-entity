@@ -1,0 +1,6 @@
+#ifndef _INCLUDED_HELLO_TA_UUID_H_
+#define _INCLUDED_HELLO_TA_UUID_H_
+
+#define HELLO_TA_UUID
+
+#endif  // _INCLUDED_HELLO_TA_UUID_H_
