@@ -2,7 +2,7 @@
 
 CROSS_COMPILER=arm-linux-gnueabihf-
 CC=$(CROSS_COMPILER)gcc
-CC_FLAGS= -Wall -g
+CCFLAGS= -Wall -g
 
 DEF= -DBINARY_PREFIX="Hello_TA "
 
@@ -27,13 +27,13 @@ all: ree_host ta
 
 ree_host: $(REE_SRC)
 	@echo "*** Build ree_host application ***"
-	$(CC) $(CC_FLAGS) $(DEF) $(REE_LIBS) $(REE_INC) $(COMMON_INC) $< -o $(HOST_EXEC)
+	$(CC) $(CCFLAGS) $(DEF) $(REE_LIBS) $(REE_INC) $(COMMON_INC) $< -o $(HOST_EXEC)
 	@echo "Done."
 	@echo
 
 ta: $(TA_SRC)
 	@echo "*** Build trusted application ***"
-	$(CC) $(CC_FLAGS) $(DEF) $(TA_LIBS) $(TA_INC) $(COMMON_INC) $< -o $(TA_EXEC)
+	$(CC) $(CCFLAGS) $(DEF) $(TA_LIBS) $(TA_INC) $(COMMON_INC) $< -o $(TA_EXEC)
 	@echo "Done."
 	@echo
 
