@@ -9,8 +9,10 @@
        { 0x83, 0x7c, 0xd9, 0xfd, 0x7b, 0x70, 0x89, 0x78} }
 
 /*
- * Define TA commands
+ * Commands implemented by the TA
  */
-#define HELLO_TA_MULTIPLY_ARGS 0
+enum {
+  HELLO_TA_MULTIPLY_ARGS = 0,
+};
 
 #endif  // _INCLUDED_HELLO_TA_UUID_H_

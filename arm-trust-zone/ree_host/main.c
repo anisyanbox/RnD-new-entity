@@ -47,7 +47,7 @@ int main(int argc, char * argv[]) {
   /* Initialize the TEEC_Operation struct and prepare the arguments to TrustZone */
   memset(&op, 0, sizeof(op));
 
-  /* 
+  /*
    * Types for args. We use only firsrt args passed to TA, that's why 
    * other = TEEC_NONE
    */
@@ -67,7 +67,7 @@ int main(int argc, char * argv[]) {
   if (res != TEEC_SUCCESS) {
     errx(1, "TEEC_InvokeCommand() failed with code 0x%x origin 0x%x", res, orig);
   }
-  printf("TA incremented value to %d\n", op.params[0].value.a);
+  printf("TA multiply value to %d\n", op.params[0].value.a);
   
   /*
    * When all operation finished, we need close the session and 

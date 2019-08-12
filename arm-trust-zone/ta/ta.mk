@@ -2,7 +2,7 @@
 
 CROSS_COMPILER=arm-linux-gnueabihf-
 CC=$(CROSS_COMPILER)gcc
-CCFLAGS= -Wall -g
+CCFLAGS_TA= -Wall -g -fPIC
 LDFLAG=
 
 DEF= -DBINARY_PREFIX="Hello_TA "
@@ -12,10 +12,15 @@ COMMON_INC=-I./include/
 TA_EXEC=ta
 TA_EXE_OUT=$(OUT_DIR)/$(TA_EXEC)
 TA_APP_DIR=./ta
+TA_INC_DIR=$(TA_APP_DIR)/include/
+TA_INC_DIR+=$(TA_APP_DIR)/include/tee_internal_api/
+TA_INC_DIR+=$(TA_APP_DIR)/include/tee_internal_api/mbedtls/
+TA_INC_DIR+=$(TA_APP_DIR)/include/mbedtls/tee_internal_api/sys/
 TA_INC_LIST=$(wildcard $(TA_APP_DIR)/*.h)
+TA_INC_LIST+=$(wildcard $(TA_INC_DIR)/*.h)
 TA_INC=$(foreach inc, $(TA_INC_LIST), -I$(inc))
 TA_SRC=$(wildcard $(TA_APP_DIR)/*.c)
-TA_LIBS=
+TA_LIBS= -lmbedtls -lutee -lutils
 TA_OBJ_DIR=$(OUT_DIR)/ta_obj
 TA_OBJ_PATH=$(TA_OBJ_DIR)/*.o
 TA_OBJECTS=$(patsubst %.c, %.o, $(TA_SRC))
@@ -23,14 +28,13 @@ TA_OBJECTS=$(patsubst %.c, %.o, $(TA_SRC))
 all: ta
 
 ta: start_build_ta $(TA_OBJECTS) directories end_build_ta
-	$(CC) $(LDFLAG) $(TA_OBJ_PATH) $(TA_LIBS) -o $(TA_EXE_OUT)
 
 start_build_ta:
 	@echo
 	@echo "*** Build the trusted application ***"
 
 %.o: %.c
-	$(CC) $(CCFLAGS) $(TA_INC) $(COMMON_INC) $(DEF) -c $*.c -o $*.o
+	$(CC) $(CCFLAGS_TA) $(TA_INC) $(COMMON_INC) $(DEF) -c $*.c -o $*.o
 
 directories:
 	@mkdir -p $(TA_OBJ_DIR)
