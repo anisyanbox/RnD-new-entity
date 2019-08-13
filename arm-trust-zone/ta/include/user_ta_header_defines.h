@@ -32,11 +32,12 @@
 
 #define TA_UUID HELLO_TA_UUID
 
-#define TA_FLAGS                (TA_FLAG_USER_MODE | TA_FLAG_EXEC_DDR | \
-				TA_FLAG_SECURE_DATA_PATH | \
-				TA_FLAG_CACHE_MAINTENANCE)
+#define TA_FLAGS    (TA_FLAG_USER_MODE | \
+                     TA_FLAG_EXEC_DDR | \
+                     TA_FLAG_SECURE_DATA_PATH | \
+                     TA_FLAG_CACHE_MAINTENANCE)
 
-#define TA_STACK_SIZE		(4 * 1024)
-#define TA_DATA_SIZE		(256 * 1024)
+#define TA_STACK_SIZE       (4 * 1024)
+#define TA_DATA_SIZE        (256 * 1024)
 
 #endif

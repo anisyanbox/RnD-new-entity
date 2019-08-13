@@ -25,9 +25,9 @@ TA_OBJ_DIR=$(OUT_DIR)/ta_obj
 TA_OBJ_PATH=$(TA_OBJ_DIR)/*.o
 TA_OBJECTS=$(patsubst %.c, %.o, $(TA_SRC))
 
-all: ta
+all: ta end_build_ta
 
-ta: start_build_ta $(TA_OBJECTS) directories end_build_ta
+ta: start_build_ta $(TA_OBJECTS) directories
 
 start_build_ta:
 	@echo
