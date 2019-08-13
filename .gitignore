@@ -8,9 +8,13 @@
 # binary files
 *.bin
 *.hex
+
+# crypto chalange binaries
 crypto-flight
 
 # build temp files
 build/
 obj/
-
+out/
+*/out/
+**/out/
