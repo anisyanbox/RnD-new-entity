@@ -20,9 +20,9 @@ REE_OBJ_DIR=$(OUT_DIR)/ree_obj
 REE_OBJ_PATH=$(REE_OBJ_DIR)/*.o
 REE_OBJECTS=$(patsubst %.c, %.o, $(REE_SRC))
 
-all: ree_host
+all: ree_host end_build_host
 
-ree_host: start_build_host $(REE_OBJECTS) directories end_build_host
+ree_host: start_build_host $(REE_OBJECTS) directories
 	$(CC) $(LDFLAG) $(REE_OBJ_PATH) $(REE_LIBS) -o $(REE_EXE_OUT)
 
 start_build_host:
