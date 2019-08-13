@@ -33,7 +33,13 @@ In my case secure OS have been flashed already in my device. But you can do it y
 ### How to install all:
 After you are convinced that you have ARM based targer with flashed TrustZone, you should:
 1. Learn how to [install](https://optee.readthedocs.io/architecture/trusted_applications.html) your TA in TrustZone.
-2. With help `scp` upload your host-app to target and run it.
+2. With help `scp` upload your host-app to target.
+3. There just run your REE binary.
+```console
+[root@Sailfish nemo]# ./ree 12 -12
+Invoking TA to multiply some values:
+12 * -12 = -144
+```
 
 ### Links that have been used:
  - [OP-TEE-Sample-Applications](https://github.com/linaro-swg/optee_examples)
