@@ -31,9 +31,15 @@ Note: It is actually only for ARM platforms with TrustZone with OP-TEE.
 In my case secure OS have been flashed already in my device. But you can do it yourself from [optee-sources](https://github.com/OP-TEE/optee_os) and with help any flashing tool for your device.
 
 ### How to install all:
-After you are convinced that you have ARM based targer with flashed TrustZone, you should:
+After you are convinced that you have ARM based target with flashed TrustZone, you should:
 1. Learn how to [install](https://optee.readthedocs.io/architecture/trusted_applications.html) your TA in TrustZone.
-2. With help `scp` upload your host-app to target and run it.
+2. With help `scp` upload your host-app to target.
+3. There just run your REE binary.
+```console
+[root@Sailfish nemo]# ./ree 12 -12
+Invoking TA to multiply some values:
+12 * -12 = -144
+```
 
 ### Links that have been used:
  - [OP-TEE-Sample-Applications](https://github.com/linaro-swg/optee_examples)
