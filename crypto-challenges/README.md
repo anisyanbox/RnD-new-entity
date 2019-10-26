@@ -1,4 +1,4 @@
-# Flight with OpenSSL
+# Crypto challenges
 
 I have decided to learn a bit cryptography and OpenSSL library. 
 I want to discover secure software world and apply new knowledge with some my side projects.
@@ -21,7 +21,3 @@ In progress.
  - [Libcrypto-WIKI](https://wiki.openssl.org/index.php/Libcrypto_API)
  - [Libcrypto-API](https://www.openssl.org/docs/man1.1.0/man3/) 
  - [Openssl-engine-example](https://www.openssl.org/blog/blog/2015/10/08/engine-building-lesson-1-a-minimum-useless-engine/)
-
-
-## ToDo:
- - Add open source license and delete this string.
