@@ -1,7 +1,7 @@
 # common variables
 PROG_DIR=.
 OBJ_DIR=obj
-EXE_FILE=crypto-flight
+EXE_FILE=crypto
 
 # compiler and its flags
 CC=gcc
