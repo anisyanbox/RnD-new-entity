@@ -1,26 +1,12 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-/* used for returning from functions */
-#define RET_SUCCESS 1
-#define RET_ERR -1
-
-/* do some xor operation or not */
-#define DO_OP 1
-#define NOT_DO_OP 0
-
-/* logging defines */
-#ifdef DEBUG_MODE
-#define ERR_PRFX_STR "[ERR]: "
-#define DBG_PRFX_STR "[DBG]: "
-#define ERR_PRNT(...) printf(ERR_PRFX_STR); printf(__VA_ARGS__)
-#define DBG_PRNT(...) printf(DBG_PRFX_STR); printf(__VA_ARGS__)
-#else
-#define ERR_PRNT(...)
-#define DBG_PRNT(...)
-#endif
+#include "xor.h"
+#include "main.h"
+#include "simple_xor_test.h"
 
 struct what_xor_oper {
     int e_flag;
@@ -30,8 +16,6 @@ struct what_xor_oper {
     char *fi;
     char *key;
 };
-
-static void run_test(void);
 
 static void usage(void)
 {
@@ -84,13 +68,13 @@ static int parse_args(int argc, char ** argv, struct what_xor_oper **op)
 
                 return RET_ERR;
             }
-        default: 
+        default:
             break;
         }
     }
 
-    DBG_PRNT("File - %s\n", op_struct.fi);
-    DBG_PRNT("Key - %s\n", op_struct.key);
+    DBG_PRNT("File - <%s>\n", op_struct.fi);
+    DBG_PRNT("Key - <%s>\n", op_struct.key);
     DBG_PRNT("e - %c\n", op_struct.e_flag ? '1' : '0');
     DBG_PRNT("d - %c\n", op_struct.d_flag ? '1' : '0');
     DBG_PRNT("b - %c\n", op_struct.b_flag ? '1' : '0');
@@ -112,13 +96,13 @@ static int parse_args(int argc, char ** argv, struct what_xor_oper **op)
         return RET_ERR;
     }
     if (access((const char *)op_struct.fi, F_OK) == -1 ) {
-        ERR_PRNT("file %s not exists\n", op_struct.fi);
+        ERR_PRNT("file <%s> not exists\n", op_struct.fi);
 
         return RET_ERR;
     }
 
     if (access((const char *)op_struct.fi, R_OK) == -1 ) {
-        ERR_PRNT("you can't access to read the %s file", op_struct.fi);
+        ERR_PRNT("you can't access to read the <%s> file", op_struct.fi);
 
         return RET_ERR;
     }
@@ -128,23 +112,47 @@ static int parse_args(int argc, char ** argv, struct what_xor_oper **op)
     return RET_SUCCESS;
 }
 
-static void xor_break(char *xored_file)
+static int save_data_to_file(char *original_fname, char *end, char *d, size_t dlen)
 {
-    return;
-}
+    FILE *fo;
+    char *fo_name;
+    size_t fo_len = strlen((const char *)original_fname) + \
+                    strlen((const char *)end);
 
-static void xor_encrypt(char *fi, char *key)
-{
-    return;
-}
+    /* memory for save new file name */
+    fo_name = (char *)malloc(sizeof(char) * fo_len);
+    
+    if (fo_name) {
+        sprintf(fo_name, "%s%s", original_fname, end);
 
-static void xor_decrypt(char *fi, char *key)
-{
-    return;
+        DBG_PRNT("output file is: <%s>\n", fo_name);
+    } else {
+        ERR_PRNT("can't allocate data for output file name\n");
+
+        return RET_ERR;
+    }
+
+    if ((fo = fopen(fo_name, "w")) == NULL) {
+        ERR_PRNT("can't create out file <%s>\n", fo_name);
+
+        free(fo_name);
+
+        return RET_ERR;
+    }
+
+    fwrite(d, sizeof(char), dlen, fo);
+
+    free(fo_name);
+    free(d);
+    fclose(fo);
+
+    return RET_SUCCESS;
 }
 
 int main(int argc, char **argv)
 {
+    char *d;
+    size_t dlen;
     struct what_xor_oper *xor_oper;
 
     if (parse_args(argc, argv, &xor_oper) != RET_SUCCESS) {
@@ -154,22 +162,36 @@ int main(int argc, char **argv)
     }
 
     if (xor_oper->t_flag) {
-        run_test();
-    }
-    else if (xor_oper->e_flag) {
-        xor_encrypt(xor_oper->fi, xor_oper->key);
-    }
-    else if (xor_oper->d_flag) {
-        xor_decrypt(xor_oper->fi, xor_oper->key);
-    }
-    else if (xor_oper->b_flag) {
-        xor_break(xor_oper->fi);
+        simple_xor_run_test();
+    } else if (xor_oper->e_flag) {
+        if (xor_file(xor_oper->fi, xor_oper->key, &d, &dlen) != RET_SUCCESS) {
+            ERR_PRNT("xor_file() failed\n");
+
+            return EXIT_FAILURE;
+        }
+
+        save_data_to_file(xor_oper->fi, ".xored", d, dlen);
+    } else if (xor_oper->d_flag) {
+        if (dexor_file(xor_oper->fi, xor_oper->key, &d, &dlen) != RET_SUCCESS) {
+            ERR_PRNT("dexor_file() failed\n");
+
+            return EXIT_FAILURE;
+        }
+
+        save_data_to_file(xor_oper->fi, ".dexored", d, dlen);
+    } else if (xor_oper->b_flag) {
+        char *data;
+        size_t len;
+
+        if (break_xored_file(xor_oper->fi, &data, &len) == RET_SUCCESS) {
+            DBG_PRNT("break xored file is success\n");
+            DBG_PRNT("\n\tlen = %d,\n\tdata: <%s>", (int)len, data);
+        } else {
+            ERR_PRNT("break_xored_file() failed\n");
+
+            return EXIT_FAILURE;
+        }
     }
 
     return EXIT_SUCCESS;
-}
-
-static void run_test(void)
-{
-    return;
 }
