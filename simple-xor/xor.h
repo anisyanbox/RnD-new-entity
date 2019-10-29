@@ -5,41 +5,57 @@
 #include <stddef.h>
 
 /**
- * @param fname
- * name of file
+ * @param d
+ * Data for xoring (It is array with bare data).
+ * This array will changed coresponding with k.
  * 
- * @param key
- * key for xor encrypt/decrypt data
+ * @param dlen
+ * Lengh of data for xor
  *
- * @param out
- * pounter to xored/dexored data
+ * @param k
+ * Key for xor
  * 
- * @param outlen
- * pointer to xored/dexored data len
+ * @param klen
+ * Key length
  * 
  * @return
  * RET_SUCCESS - success
  * RET_ERR - fault
  **/
-int xor_file(char *fname, char *key, char **out, size_t *outlen);
-int dexor_file(char *fname, char *key, char **out, size_t *outlen);
-
+int xor_bare_data(char *d, size_t dlen, const char *k, size_t klen);
 
 /**
- * @param xored_file
- * name of file with xored data
+ * Function xored data from 'finame' file with 'key' and save new data
+ * in file with 'finame+fo_end' name.
+ * 
+ * @param finame
+ * Name of input file
+ * 
+ * @param key
+ * Key for xor/dexor data
+ *
+ * @return
+ * RET_SUCCESS - success
+ * RET_ERR - fault
+ **/
+int xor_file(const char *finame, const char *key, const char *fo_end);
+int dexor_file(const char *finame, const char *key, const char *fo_end);
+
+/**
+ * @param finame_xored
+ * Name of file with xored data
  * 
  * @param out
- * buffer with new dexored data
+ * Buffer with new dexored data
  * 
  * @param len
- * length of new dexored data 
+ * Length of new dexored data 
  * 
  * @return
  * RET_SUCCESS - break xor success
  * RET_ERR - break xor fault
  * 
  **/
-int break_xored_file(char *xored_file,  char **out, size_t *len);
+int break_xored_file(const char *finame_xored,  char **out, size_t *len);
 
 #endif  // _XOR_H_

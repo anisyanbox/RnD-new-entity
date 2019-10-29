@@ -112,47 +112,8 @@ static int parse_args(int argc, char ** argv, struct what_xor_oper **op)
     return RET_SUCCESS;
 }
 
-static int save_data_to_file(char *original_fname, char *end, char *d, size_t dlen)
-{
-    FILE *fo;
-    char *fo_name;
-    size_t fo_len = strlen((const char *)original_fname) + \
-                    strlen((const char *)end);
-
-    /* memory for save new file name */
-    fo_name = (char *)malloc(sizeof(char) * fo_len);
-    
-    if (fo_name) {
-        sprintf(fo_name, "%s%s", original_fname, end);
-
-        DBG_PRNT("output file is: <%s>\n", fo_name);
-    } else {
-        ERR_PRNT("can't allocate data for output file name\n");
-
-        return RET_ERR;
-    }
-
-    if ((fo = fopen(fo_name, "w")) == NULL) {
-        ERR_PRNT("can't create out file <%s>\n", fo_name);
-
-        free(fo_name);
-
-        return RET_ERR;
-    }
-
-    fwrite(d, sizeof(char), dlen, fo);
-
-    free(fo_name);
-    free(d);
-    fclose(fo);
-
-    return RET_SUCCESS;
-}
-
 int main(int argc, char **argv)
 {
-    char *d;
-    size_t dlen;
     struct what_xor_oper *xor_oper;
 
     if (parse_args(argc, argv, &xor_oper) != RET_SUCCESS) {
@@ -164,21 +125,19 @@ int main(int argc, char **argv)
     if (xor_oper->t_flag) {
         simple_xor_run_test();
     } else if (xor_oper->e_flag) {
-        if (xor_file(xor_oper->fi, xor_oper->key, &d, &dlen) != RET_SUCCESS) {
+        if (xor_file((const char *)xor_oper->fi, (const char *)xor_oper->key,
+                    ".xored") != RET_SUCCESS) {
             ERR_PRNT("xor_file() failed\n");
 
             return EXIT_FAILURE;
         }
-
-        save_data_to_file(xor_oper->fi, ".xored", d, dlen);
     } else if (xor_oper->d_flag) {
-        if (dexor_file(xor_oper->fi, xor_oper->key, &d, &dlen) != RET_SUCCESS) {
+        if (dexor_file((const char *)xor_oper->fi, (const char *)xor_oper->key,
+                ".dexored") != RET_SUCCESS) {
             ERR_PRNT("dexor_file() failed\n");
 
             return EXIT_FAILURE;
         }
-
-        save_data_to_file(xor_oper->fi, ".dexored", d, dlen);
     } else if (xor_oper->b_flag) {
         char *data;
         size_t len;
