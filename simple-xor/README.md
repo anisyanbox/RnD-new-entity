@@ -4,20 +4,20 @@ XOR is exclusive-or operation with bits:
 ```math
 0 • 0 = 0
 0 • 1 = 1
-1 • 0 = 0
+1 • 0 = 1
 1 • 1 = 0 
 ```
 It's nothing more than [Vigenere](https://en.wikipedia.org/wiki/Vigen%C3%A8re_cipher) polyalphabetic cipher.
-This cipher can encrypt a plain text with keyword (it means password). Encrypt and decrypt are made by [tabula recta](https://en.wikipedia.org/wiki/Tabula_recta). This table contains the English alphabet shifted by some value. We can match plain text symbol with keyword and to get cipher text.
+This cipher can encrypt a plain text with keyword (user password). Encrypt and decrypt are made by [tabula recta](https://en.wikipedia.org/wiki/Tabula_recta). This table contains the English alphabet shifted by some value(like [ROT13](https://en.wikipedia.org/wiki/ROT13)). We can match plain text symbol with keyword and to get cipher text.
 
-In XOR cipher we have keyword too. And xor-algorithm is symmetric algorithm too. There are some common formula symmetric ciphers:
+In XOR cipher we have keyword too. And xor-algorithm is symmetric algorithm too. There are some common formula for all symmetric ciphers:
 ```math
 P • K = C
 C • K = P
 
 P - plain text
 C - cipher text
-K - key
+K - secret key
 ```
 It's sufficient theoretical foundations to code your own first xor-cipher.
 
@@ -46,4 +46,4 @@ flags:
 ### How to work break algorithm
 In modern computer world anyone can write the break algorithm for XOR.
 By itself, using a constant repeating key, a simple XOR cipher can trivially be broken using [frequency analysis](https://en.wikipedia.org/wiki/Frequency_analysis).
-XOR cipher has key length less than plait text size. We can use the fact to break XOR.
+XOR cipher has key length less than plain text size. We can use the fact to break XOR.
