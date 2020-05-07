@@ -10,83 +10,93 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
+#include <linux/cdev.h>
+#include <linux/uaccess.h>
 
-static int a = 0;
-static int b = 0;
-static int c[5] = { 0 };
-static int cnum = sizeof(c)/sizeof(c[0]);
+static int open_cnt = 0;
+static int common_write_data_bytes = 0;
 
-module_param(a,int,0660);
-module_param(b,int,0660);
-module_param_array(c, int, &cnum, 0660);
+static dev_t first; /* first number of device node */
+static unsigned int devcount = 1;
+static int my_major = 240; /* static major */
+static int my_minor = 0;
+static struct cdev *devnode_cdev;
 
-static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr,
-			   char *buf)
+#define MYDEV_NAME "solution_node"
+
+static ssize_t solution_read(struct file *file, char __user *buf, size_t lbuf,
+			     loff_t *ppos)
 {
-	int sum_input;
+	int showlen;
+	char show[50];
 
-	sum_input = a + b + c[0] + c[1] + c[2] + c[3] + c[4];
+	showlen = sprintf(show, "%d %d\n", open_cnt, common_write_data_bytes);
 
-	return sprintf(buf, "%d\n", sum_input);
+	return simple_read_from_buffer(buf, lbuf, ppos, show, showlen);
 }
 
-static ssize_t my_sys_store(struct kobject *kobj, struct kobj_attribute *attr,
-			    const char *buf, size_t count)
+static ssize_t solution_write(struct file *file, const char __user *buf,
+			      size_t lbuf, loff_t *ppos)
 {
-	return count;
+	common_write_data_bytes += lbuf;
+
+	return lbuf;
 }
 
-static struct kobj_attribute my_sys_attribute = 
-	__ATTR(my_sys, 0664, my_sys_show, my_sys_store);
+static int solution_open(struct inode *inode, struct file *file)
+{
+	++open_cnt;
 
-/*
- * Create a group of attributes so that we can create and destroy them all
- * at once.
- */
-static struct attribute *attrs[] = {
-	&my_sys_attribute.attr,
-	NULL, /* need to NULL terminate the list of attributes */
+	return 0;
+}
+
+static int solution_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static struct file_operations fops = {
+	.owner = THIS_MODULE,
+	.open = solution_open,
+	.release = solution_release,
+	.read = solution_read,
+	.write = solution_write,
 };
-
-/*
- * All this attributes will be expotred in your kobj dir.
- *
- * kobj will be created after kobject_create_and_add() call
- * in sysfs
- */
-static const struct attribute_group my_kobject_groups = {
-	.attrs = attrs,
-};
-
-static struct kobject *my_kobject;
 
 static int __init solution_init(void)
 {
-	int retval;
+	int retval = 0;
 
-	/*
-	 * This function creates a kobject structure dynamically and registers it
-	 * with sysfs with 'name'. When you are finished with this structure, call
-	 * kobject_put() and the structure will be dynamically freed when
-	 * it is no longer being used.
-	 *
-	 * For this kobj kernel uses default ktype with release function:
-	 * https://elixir.bootlin.com/linux/latest/source/lib/kobject.c#L750
-	 */
-	my_kobject = kobject_create_and_add("my_kobject", kernel_kobj);
-	if (!my_kobject)
+	first = MKDEV(my_major, my_minor);
+	register_chrdev_region(first, devcount, MYDEV_NAME);
+
+	/* allocate memory */
+	devnode_cdev = cdev_alloc();
+	if (!devnode_cdev)
 		return -ENOMEM;
 
-	retval = sysfs_create_group(my_kobject, &my_kobject_groups);
+	/* assign fops to cdev */
+	cdev_init(devnode_cdev, &fops);
+
+	/*
+	 * Assign kernel object to common device table
+	 *
+	 * use sudo mknod /dev/solution_node c 240 0 2> /dev/null
+	 * to create node in devfs
+	 */
+	retval = cdev_add(devnode_cdev, first, devcount);
 	if (retval)
-		kobject_put(my_kobject);
+		cdev_del(devnode_cdev);
 
 	return retval;
 }
 
 static void __exit solution_exit(void)
 {
-	kobject_put(my_kobject);	
+	if (devnode_cdev)
+		cdev_del(devnode_cdev);
+
+	unregister_chrdev_region(first, devcount);
 }
 
 module_init(solution_init);
