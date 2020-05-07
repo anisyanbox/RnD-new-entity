@@ -1,4 +1,5 @@
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/types.h>
 #include <linux/fcntl.h>
 #include <linux/fs.h>
@@ -10,14 +11,23 @@
 #include <linux/sysfs.h>
 #include <linux/init.h>
 
+static int a = 0;
+static int b = 0;
+static int c[5] = { 0 };
+static int cnum = sizeof(c)/sizeof(c[0]);
+
+module_param(a,int,0660);
+module_param(b,int,0660);
+module_param_array(c, int, &cnum, 0660);
+
 static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr,
 			   char *buf)
 {
-	static int read_op_cnt = 0;
+	int sum_input;
 
-	++read_op_cnt;
+	sum_input = a + b + c[0] + c[1] + c[2] + c[3] + c[4];
 
-	return sprintf(buf, "%d\n", read_op_cnt);
+	return sprintf(buf, "%d\n", sum_input);
 }
 
 static ssize_t my_sys_store(struct kobject *kobj, struct kobj_attribute *attr,
