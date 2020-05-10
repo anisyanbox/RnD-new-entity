@@ -10,205 +10,147 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
-#include <linux/cdev.h>
-#include <linux/uaccess.h>
-#include <linux/spinlock.h>
-#include <linux/spinlock_types.h>
+#include <linux/list.h>
 
-#define KBUF_SIZE (10 * (PAGE_SIZE))
-#define MODULE_DEFNAME "solution_node"
+static struct list_head *get_module_list_head(void)
+{
+	return THIS_MODULE->list.prev;
+}
 
-static DEFINE_SPINLOCK(ses_id_lock);
+static int get_module_cnt(void)
+{
+	int m_cnt = 0;
+	struct list_head *iterator;
 
-static dev_t devno_first;
-static int devcount = 1;
-static int my_major = 240; /* static major for experimenting */
-static int my_minor = 0;
-static struct cdev *devnode_cdev;
+	list_for_each(iterator, get_module_list_head()) {
+		++m_cnt;
+	}
 
-static int curr_available_ses_id = 0;
+	return m_cnt;
+}
 
-struct devnode_session {
-	int ses_id;
-	int avail; /* common count bytes into buffer */
-	char *kbuf;
+static int fill_arr_with_str(char **arr, int arr_size)
+{
+	int i = 0;
+	struct list_head *iterator;
+
+	list_for_each(iterator, get_module_list_head()) {
+		arr[i] = (list_entry(iterator, struct module, list))->name;
+		++i;
+
+		if (i == arr_size)
+			break;
+	}
+
+	return i;
+}
+
+/* change pointers */
+static void my_swap(char **a, char **b)
+{
+	char *t = *a;
+
+	*a = *b;
+	*b = t;
+}
+
+static void sort_string_array(char **arr, int arr_size)
+{
+	int i, j;
+	char *s1;
+	char *s2;
+
+	for (i = 0; i < arr_size; ++i) {
+		for (j = i + 1; j < arr_size; ++j) {
+			s1 = arr[i];
+			s2 = arr[j];
+			if (strcmp(s1, s2) > 0)
+				my_swap(&arr[i], &arr[j]);
+		}
+	}
+}
+
+static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr,
+			   char *buf)
+{
+	int i;
+	int len = 0;
+	int m_cnt;
+	char **str_table;
+
+	m_cnt = get_module_cnt();
+
+	str_table = kmalloc(sizeof(char *) * m_cnt, GFP_KERNEL);
+	if (!str_table)
+		return -ENOMEM;
+
+	m_cnt = fill_arr_with_str(str_table, m_cnt);
+
+	sort_string_array(str_table, m_cnt);
+
+	for (i = 0; i < m_cnt; ++i) {
+		len += sprintf(buf + len, "%s\n", str_table[i]);
+
+		if (len + MODULE_NAME_LEN > PAGE_SIZE)
+			break;
+	}
+
+	kfree(str_table);
+
+	return (ssize_t)len;
+}
+
+static struct kobj_attribute my_sys_attribute = 
+	__ATTR(my_sys, 0444, my_sys_show, NULL);
+
+/*
+ * Create a group of attributes so that we can create and destroy them all
+ * at once.
+ */
+static struct attribute *attrs[] = {
+	&my_sys_attribute.attr,
+	NULL, /* need to NULL terminate the list of attributes */
 };
 
-static struct devnode_session *devnode_alloc_session(void)
-{
-	struct devnode_session *ret;
-
-	ret = kmalloc(sizeof(struct devnode_session), GFP_KERNEL);
-	if (!ret)
-		return NULL;
-
-	spin_lock(&ses_id_lock);
-	ret->ses_id = curr_available_ses_id;
-	++curr_available_ses_id;
-	spin_unlock(&ses_id_lock);
-
-	ret->kbuf = kmalloc(sizeof(char) * KBUF_SIZE, GFP_KERNEL);
-	if (!ret->kbuf) {
-		kfree(ret);
-		ret = NULL;
-	} else {
-		memset(ret->kbuf, 0, KBUF_SIZE);
-		ret->kbuf[0] = ret->ses_id + '0';
-		ret->avail = 1;
-	}
-
-	return ret;
-}
-
-static void devnode_free_session(struct devnode_session *s)
-{
-	kfree(s->kbuf);
-	kfree(s);
-
-	if (curr_available_ses_id != 0) {
-		spin_lock(&ses_id_lock);
-		--curr_available_ses_id;
-		spin_unlock(&ses_id_lock);
-	}
-}
-
-static ssize_t sol_read(struct file *file, char __user *buf, size_t lbuf,
-			     loff_t *ppos)
-{
-	int retval;
-	struct devnode_session *s = file->private_data;
-
-	retval = simple_read_from_buffer(buf, lbuf, ppos, s->kbuf, s->avail);
-	printk(KERN_DEBUG "kernel_mooc: %s: sid = %d: lbuf = %ld, "
-			"ppos = %llu, retval = %d\n",
-			__func__, s->ses_id, lbuf, *ppos, retval);
-
-	return retval;
-}
-
-static ssize_t sol_write(struct file *file, const char __user *buf,
-			      size_t lbuf, loff_t *ppos)
-{
-	int retval;
-	struct devnode_session *s = file->private_data;
-	int new_pos;
-
-	retval = simple_write_to_buffer(s->kbuf, KBUF_SIZE, ppos, buf, lbuf);
-	new_pos = (int)*ppos;
-
-	if (new_pos > s->avail)
-		s->avail = new_pos;
-
-	printk(KERN_DEBUG "kernel_mooc: %s: sid = %d: ppos = %llu, "
-			"retval = %d, avail = %d, kbuf = %s\n",
-			__func__, s->ses_id, *ppos, retval,
-			s->avail, s->kbuf);
-
-	return retval;
-}
-
-static int sol_open(struct inode *inode, struct file *file)
-{
-	struct devnode_session *s;
-
-	s = devnode_alloc_session();
-	if (!s) {
-		printk(KERN_ERR "%s: devnode_alloc_session() failed\n", __func__);
-		return -1;
-	}
-
-	printk(KERN_DEBUG "kernel_mooc: %s: sid = %d\n", __func__, s->ses_id);
-	file->private_data = s;
-	file->f_pos = 0;
-
-	return 0;
-}
-
-static int sol_release(struct inode *inode, struct file *file)
-{
-	struct devnode_session *s = file->private_data;
-
-	printk(KERN_DEBUG "kernel_mooc: %s: sid = %d\n", __func__, s->ses_id);
-
-	if (s)
-		devnode_free_session(s);
-
-	return 0;
-}
-
-static loff_t sol_seek(struct file *file, loff_t offset, int orig)
-{
-	loff_t testpos;
-	struct devnode_session *s = file->private_data;
-
-	switch (orig) {
-	case SEEK_SET:
-		testpos = offset;
-		break;
-	case SEEK_CUR:
-		testpos = file->f_pos + offset;
-		break;
-	case SEEK_END:
-		testpos = s->avail + offset;
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	testpos = testpos < KBUF_SIZE ? testpos : KBUF_SIZE;
-	testpos = testpos >= 0 ? testpos : 0;
-
-	file->f_pos = testpos;
-	printk(KERN_DEBUG "kernel_mooc: %s: sid = %d: seek(off=%d, cmd=%d), file->f_pos = %d",
-			__func__, s->ses_id, (int)offset, orig, (int)file->f_pos);
-
-	return testpos;
-}
-
-static struct file_operations fops = {
-	.owner = THIS_MODULE,
-	.open = sol_open,
-	.release = sol_release,
-	.read = sol_read,
-	.write = sol_write,
-	.llseek = sol_seek,
+/*
+ * All this attributes will be expotred in your kobj dir.
+ *
+ * kobj will be created after kobject_create_and_add() call
+ * in sysfs
+ */
+static const struct attribute_group my_kobject_groups = {
+	.attrs = attrs,
 };
+
+static struct kobject *my_kobject;
 
 static int __init solution_init(void)
 {
 	int retval;
 
-	devno_first = MKDEV(my_major, my_minor);
-	register_chrdev_region(devno_first, devcount, MODULE_DEFNAME);
-
-	spin_lock_init(&ses_id_lock);
-
-	/* allocate memory */
-	devnode_cdev = cdev_alloc();
-	if (!devnode_cdev) {
-		printk(KERN_ERR "%s: cdev_alloc() failed\n", __func__);
+	/*
+	 * This function creates a kobject structure dynamically and registers it
+	 * with sysfs with 'name'. When you are finished with this structure, call
+	 * kobject_put() and the structure will be dynamically freed when
+	 * it is no longer being used.
+	 *
+	 * For this kobj kernel uses default ktype with release function:
+	 * https://elixir.bootlin.com/linux/latest/source/lib/kobject.c#L750
+	 */
+	my_kobject = kobject_create_and_add("my_kobject", kernel_kobj);
+	if (!my_kobject)
 		return -ENOMEM;
-	}
 
-	/* assign fops to cdev */
-	cdev_init(devnode_cdev, &fops);
+	retval = sysfs_create_group(my_kobject, &my_kobject_groups);
+	if (retval)
+		kobject_put(my_kobject);
 
-	/* assign kernel object to common device table */
-	retval = cdev_add(devnode_cdev, devno_first, 1);
-	if (retval) {
-		printk(KERN_ERR "%s: cdev_add() failed\n", __func__);
-		cdev_del(devnode_cdev);
-	}
-
-	return 0;
+	return retval;
 }
 
 static void __exit solution_exit(void)
 {
-	if (devnode_cdev)
-		cdev_del(devnode_cdev);
-
-	unregister_chrdev_region(devno_first, devcount);
+	kobject_put(my_kobject);
 }
 
 module_init(solution_init);
