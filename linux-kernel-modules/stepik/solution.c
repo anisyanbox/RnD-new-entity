@@ -10,147 +10,111 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
-#include <linux/list.h>
+#include <linux/cdev.h>
+#include <linux/uaccess.h>
+#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
+#include <linux/ioctl.h>
 
-static struct list_head *get_module_list_head(void)
+#define IOC_MAGIC 'k'
+
+#define SUM_LENGTH _IOWR(IOC_MAGIC, 1, char*)
+#define SUM_CONTENT _IOWR(IOC_MAGIC, 2, char*)
+
+#define MODULE_DEFNAME "solution_node"
+
+static dev_t devno_first;
+static int devcount = 1;
+static int my_major = 240; /* static major for experimenting */
+static int my_minor = 0;
+static struct cdev *devnode_cdev;
+
+static ssize_t sol_read(struct file *file, char __user *buf, size_t lbuf,
+			loff_t *ppos)
 {
-	return THIS_MODULE->list.prev;
+	return 0;
 }
 
-static int get_module_cnt(void)
+static ssize_t sol_write(struct file *file, const char __user *buf,
+			 size_t lbuf, loff_t *ppos)
 {
-	int m_cnt = 0;
-	struct list_head *iterator;
+	return lbuf;
+}
 
-	list_for_each(iterator, get_module_list_head()) {
-		++m_cnt;
+static int sol_open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static int sol_release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static long sol_unlocked_ioctl(struct file *file,
+		unsigned int cmd, unsigned long arg)
+{
+	long cur_sum;
+	static long sum_len = 0;
+	static long sum_content = 0;
+
+	switch (cmd) {
+	case SUM_LENGTH:
+		sum_len += strlen((char *)arg);
+		return sum_len;
+	case SUM_CONTENT:
+		(void)kstrtol((char*)arg, 10, &cur_sum);
+		sum_content += cur_sum;
+		return sum_content;
+	default:
+		break;
 	}
 
-	return m_cnt;
+	return -EINVAL;
 }
 
-static int fill_arr_with_str(char **arr, int arr_size)
-{
-	int i = 0;
-	struct list_head *iterator;
-
-	list_for_each(iterator, get_module_list_head()) {
-		arr[i] = (list_entry(iterator, struct module, list))->name;
-		++i;
-
-		if (i == arr_size)
-			break;
-	}
-
-	return i;
-}
-
-/* change pointers */
-static void my_swap(char **a, char **b)
-{
-	char *t = *a;
-
-	*a = *b;
-	*b = t;
-}
-
-static void sort_string_array(char **arr, int arr_size)
-{
-	int i, j;
-	char *s1;
-	char *s2;
-
-	for (i = 0; i < arr_size; ++i) {
-		for (j = i + 1; j < arr_size; ++j) {
-			s1 = arr[i];
-			s2 = arr[j];
-			if (strcmp(s1, s2) > 0)
-				my_swap(&arr[i], &arr[j]);
-		}
-	}
-}
-
-static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr,
-			   char *buf)
-{
-	int i;
-	int len = 0;
-	int m_cnt;
-	char **str_table;
-
-	m_cnt = get_module_cnt();
-
-	str_table = kmalloc(sizeof(char *) * m_cnt, GFP_KERNEL);
-	if (!str_table)
-		return -ENOMEM;
-
-	m_cnt = fill_arr_with_str(str_table, m_cnt);
-
-	sort_string_array(str_table, m_cnt);
-
-	for (i = 0; i < m_cnt; ++i) {
-		len += sprintf(buf + len, "%s\n", str_table[i]);
-
-		if (len + MODULE_NAME_LEN > PAGE_SIZE)
-			break;
-	}
-
-	kfree(str_table);
-
-	return (ssize_t)len;
-}
-
-static struct kobj_attribute my_sys_attribute = 
-	__ATTR(my_sys, 0444, my_sys_show, NULL);
-
-/*
- * Create a group of attributes so that we can create and destroy them all
- * at once.
- */
-static struct attribute *attrs[] = {
-	&my_sys_attribute.attr,
-	NULL, /* need to NULL terminate the list of attributes */
+static struct file_operations fops = {
+	.owner = THIS_MODULE,
+	.open = sol_open,
+	.release = sol_release,
+	.read = sol_read,
+	.write = sol_write,
+	.unlocked_ioctl = sol_unlocked_ioctl,
 };
-
-/*
- * All this attributes will be expotred in your kobj dir.
- *
- * kobj will be created after kobject_create_and_add() call
- * in sysfs
- */
-static const struct attribute_group my_kobject_groups = {
-	.attrs = attrs,
-};
-
-static struct kobject *my_kobject;
 
 static int __init solution_init(void)
 {
 	int retval;
 
-	/*
-	 * This function creates a kobject structure dynamically and registers it
-	 * with sysfs with 'name'. When you are finished with this structure, call
-	 * kobject_put() and the structure will be dynamically freed when
-	 * it is no longer being used.
-	 *
-	 * For this kobj kernel uses default ktype with release function:
-	 * https://elixir.bootlin.com/linux/latest/source/lib/kobject.c#L750
-	 */
-	my_kobject = kobject_create_and_add("my_kobject", kernel_kobj);
-	if (!my_kobject)
+	devno_first = MKDEV(my_major, my_minor);
+	register_chrdev_region(devno_first, devcount, MODULE_DEFNAME);
+
+	/* allocate memory */
+	devnode_cdev = cdev_alloc();
+	if (!devnode_cdev) {
+		printk(KERN_ERR "%s: cdev_alloc() failed\n", __func__);
 		return -ENOMEM;
+	}
 
-	retval = sysfs_create_group(my_kobject, &my_kobject_groups);
-	if (retval)
-		kobject_put(my_kobject);
+	/* assign fops to cdev */
+	cdev_init(devnode_cdev, &fops);
 
-	return retval;
+	/* assign kernel object to common device table */
+	retval = cdev_add(devnode_cdev, devno_first, 1);
+	if (retval) {
+		printk(KERN_ERR "%s: cdev_add() failed\n", __func__);
+		cdev_del(devnode_cdev);
+	}
+
+	return 0;
 }
 
 static void __exit solution_exit(void)
 {
-	kobject_put(my_kobject);
+	if (devnode_cdev)
+		cdev_del(devnode_cdev);
+
+	unregister_chrdev_region(devno_first, devcount);
 }
 
 module_init(solution_init);
