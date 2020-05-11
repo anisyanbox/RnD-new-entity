@@ -10,111 +10,81 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
-#include <linux/cdev.h>
-#include <linux/uaccess.h>
-#include <linux/spinlock.h>
-#include <linux/spinlock_types.h>
-#include <linux/ioctl.h>
+#include <linux/list.h>
+#include <linux/interrupt.h>
 
-#define IOC_MAGIC 'k'
+static const int irq = 8;
+static int int_cnt = 0;
 
-#define SUM_LENGTH _IOWR(IOC_MAGIC, 1, char*)
-#define SUM_CONTENT _IOWR(IOC_MAGIC, 2, char*)
-
-#define MODULE_DEFNAME "solution_node"
-
-static dev_t devno_first;
-static int devcount = 1;
-static int my_major = 240; /* static major for experimenting */
-static int my_minor = 0;
-static struct cdev *devnode_cdev;
-
-static ssize_t sol_read(struct file *file, char __user *buf, size_t lbuf,
-			loff_t *ppos)
+static irqreturn_t my_rtc_handler(int irq, void *device_id)
 {
-	return 0;
+	++int_cnt;
+
+	return IRQ_HANDLED;
 }
 
-static ssize_t sol_write(struct file *file, const char __user *buf,
-			 size_t lbuf, loff_t *ppos)
+static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr,
+			   char *buf)
 {
-	return lbuf;
+	return sprintf(buf, "%d\n", int_cnt);
 }
 
-static int sol_open(struct inode *inode, struct file *file)
-{
-	return 0;
-}
+static struct kobj_attribute my_sys_attribute =
+	__ATTR(my_sys, 0444, my_sys_show, NULL);
 
-static int sol_release(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
-static long sol_unlocked_ioctl(struct file *file,
-		unsigned int cmd, unsigned long arg)
-{
-	long cur_sum;
-	static long sum_len = 0;
-	static long sum_content = 0;
-
-	switch (cmd) {
-	case SUM_LENGTH:
-		sum_len += strlen((char *)arg);
-		return sum_len;
-	case SUM_CONTENT:
-		(void)kstrtol((char*)arg, 10, &cur_sum);
-		sum_content += cur_sum;
-		return sum_content;
-	default:
-		break;
-	}
-
-	return -EINVAL;
-}
-
-static struct file_operations fops = {
-	.owner = THIS_MODULE,
-	.open = sol_open,
-	.release = sol_release,
-	.read = sol_read,
-	.write = sol_write,
-	.unlocked_ioctl = sol_unlocked_ioctl,
+/*
+ * Create a group of attributes so that we can create and destroy them all
+ * at once.
+ */
+static struct attribute *attrs[] = {
+	&my_sys_attribute.attr,
+	NULL, /* need to NULL terminate the list of attributes */
 };
+
+/*
+ * All this attributes will be expotred in your kobj dir.
+ *
+ * kobj will be created after kobject_create_and_add() call
+ * in sysfs
+ */
+static const struct attribute_group my_kobject_groups = {
+	.attrs = attrs,
+};
+
+static struct kobject *my_kobject;
 
 static int __init solution_init(void)
 {
 	int retval;
 
-	devno_first = MKDEV(my_major, my_minor);
-	register_chrdev_region(devno_first, devcount, MODULE_DEFNAME);
-
-	/* allocate memory */
-	devnode_cdev = cdev_alloc();
-	if (!devnode_cdev) {
-		printk(KERN_ERR "%s: cdev_alloc() failed\n", __func__);
+	/*
+	 * This function creates a kobject structure dynamically and registers it
+	 * with sysfs with 'name'. When you are finished with this structure, call
+	 * kobject_put() and the structure will be dynamically freed when
+	 * it is no longer being used.
+	 *
+	 * For this kobj kernel uses default ktype with release function:
+	 * https://elixir.bootlin.com/linux/latest/source/lib/kobject.c#L750
+	 */
+	my_kobject = kobject_create_and_add("my_kobject", kernel_kobj);
+	if (!my_kobject)
 		return -ENOMEM;
-	}
 
-	/* assign fops to cdev */
-	cdev_init(devnode_cdev, &fops);
+	retval = sysfs_create_group(my_kobject, &my_kobject_groups);
+	if (retval)
+		kobject_put(my_kobject);
 
-	/* assign kernel object to common device table */
-	retval = cdev_add(devnode_cdev, devno_first, 1);
-	if (retval) {
-		printk(KERN_ERR "%s: cdev_add() failed\n", __func__);
-		cdev_del(devnode_cdev);
-	}
+	retval = request_irq(irq, my_rtc_handler, IRQF_SHARED,
+			"solution", my_kobject);
+	if (retval < 0)
+		return -ENODEV;
 
-	return 0;
+	return retval;
 }
 
 static void __exit solution_exit(void)
 {
-	if (devnode_cdev)
-		cdev_del(devnode_cdev);
-
-	unregister_chrdev_region(devno_first, devcount);
+	kobject_put(my_kobject);
 }
 
 module_init(solution_init);
