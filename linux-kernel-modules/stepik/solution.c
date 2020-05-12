@@ -10,81 +10,77 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
-#include <linux/list.h>
-#include <linux/interrupt.h>
+#include <linux/cdev.h>
+#include <linux/uaccess.h>
+#include <linux/spinlock.h>
+#include <linux/spinlock_types.h>
+#include <linux/ioctl.h>
+#include <linux/hrtimer.h>
+#include <linux/jiffies.h>
+#include <linux/time64.h>
+#include <linux/ktime.h>
 
-static const int irq = 8;
-static int int_cnt = 0;
+#define MY_HOST 1
 
-static irqreturn_t my_rtc_handler(int irq, void *device_id)
-{
-	++int_cnt;
+#ifndef MY_HOST
+#include "checker.h"
+#endif
 
-	return IRQ_HANDLED;
-}
-
-static ssize_t my_sys_show(struct kobject *kobj, struct kobj_attribute *attr,
-			   char *buf)
-{
-	return sprintf(buf, "%d\n", int_cnt);
-}
-
-static struct kobj_attribute my_sys_attribute =
-	__ATTR(my_sys, 0444, my_sys_show, NULL);
-
-/*
- * Create a group of attributes so that we can create and destroy them all
- * at once.
- */
-static struct attribute *attrs[] = {
-	&my_sys_attribute.attr,
-	NULL, /* need to NULL terminate the list of attributes */
+struct solution_timer_t {
+	struct hrtimer timer;
+	ktime_t period;
 };
 
-/*
- * All this attributes will be expotred in your kobj dir.
- *
- * kobj will be created after kobject_create_and_add() call
- * in sysfs
- */
-static const struct attribute_group my_kobject_groups = {
-	.attrs = attrs,
-};
+#define MAX_CNT_TIMER 32
 
-static struct kobject *my_kobject;
+/* delays for timers in milisec */
+static unsigned long delays[MAX_CNT_TIMER] = { 0 };
+static int delays_arr_len = 0;
+module_param_array(delays, ulong, &delays_arr_len, 0);
+
+static struct solution_timer_t solution_timer;
+static int next_timer_to_run = 0;
+
+static enum hrtimer_restart timer_handler(struct hrtimer *hrt)
+{
+#ifndef MY_HOST
+	check_timer();
+#endif
+	printk(KERN_INFO "kernel_mooc: cur-timer = %d | "
+			"expired delay = %ld\n",
+			next_timer_to_run, delays[next_timer_to_run]);
+
+	++next_timer_to_run;
+
+	if (next_timer_to_run == delays_arr_len)
+		return HRTIMER_NORESTART;
+
+	solution_timer.period = ms_to_ktime(delays[next_timer_to_run]);
+	hrtimer_forward_now(hrt, solution_timer.period);
+
+	return HRTIMER_RESTART;
+}
 
 static int __init solution_init(void)
 {
-	int retval;
+	hrtimer_init(&solution_timer.timer, CLOCK_REALTIME, HRTIMER_MODE_REL);
 
-	/*
-	 * This function creates a kobject structure dynamically and registers it
-	 * with sysfs with 'name'. When you are finished with this structure, call
-	 * kobject_put() and the structure will be dynamically freed when
-	 * it is no longer being used.
-	 *
-	 * For this kobj kernel uses default ktype with release function:
-	 * https://elixir.bootlin.com/linux/latest/source/lib/kobject.c#L750
-	 */
-	my_kobject = kobject_create_and_add("my_kobject", kernel_kobj);
-	if (!my_kobject)
-		return -ENOMEM;
+	solution_timer.timer.function = timer_handler;
+	solution_timer.period = ms_to_ktime(delays[next_timer_to_run]);
 
-	retval = sysfs_create_group(my_kobject, &my_kobject_groups);
-	if (retval)
-		kobject_put(my_kobject);
+#ifndef MY_HOST
+	check_timer();
+#endif
+	hrtimer_set_expires(&solution_timer.timer, solution_timer.period);
+	hrtimer_start(&solution_timer.timer, solution_timer.period,
+			HRTIMER_MODE_REL);
 
-	retval = request_irq(irq, my_rtc_handler, IRQF_SHARED,
-			"solution", my_kobject);
-	if (retval < 0)
-		return -ENODEV;
-
-	return retval;
+	return 0;
 }
 
 static void __exit solution_exit(void)
 {
-	kobject_put(my_kobject);
+	hrtimer_cancel(&solution_timer.timer);
 }
 
 module_init(solution_init);

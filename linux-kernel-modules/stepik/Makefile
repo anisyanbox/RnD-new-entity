@@ -11,7 +11,7 @@ clean:
 
 load:
 	sudo dmesg -c >> /dev/null
-	sudo insmod $(MODULE_NALE).ko
+	sudo insmod $(MODULE_NALE).ko delays=150,500,850,50,1000,350,200 
 	dmesg
 
 unload:
