@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,7 +12,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define NEEDLE_STR	"PPid:\t"
+#define NEEDLE_STR	"Name:\tgenenv\n"
 #define NEEDLE_STR_LEN	(sizeof(NEEDLE_STR) - 1)
 
 static void debug_out(const char *fmt, ...)
@@ -28,63 +29,30 @@ static void debug_out(const char *fmt, ...)
 #endif
 }
 
-/* Returns -1 if str doesn't contain PPID. 
- * Othervise returns PPID. */
-static char *find_ppid(char *str)
+static int selector(const struct dirent *d)
 {
-	int i;
-	char *search;
-	static char ppid_str[32];
-
-	search = strstr((const char *)str, NEEDLE_STR);
-	if (!search)
-		return NULL;
-
-	for (i = 0; i < 32; ++i) {
-		ppid_str[i] = str[NEEDLE_STR_LEN + i];
-		if (ppid_str[i] == '\n') {
-			ppid_str[i] = '\0';
-			break;
-		}
-	}
-
-	return ppid_str;
-}
-
-int main(int argc, char *argv[])
-{
-	int n;
 	FILE *fp;
-	pid_t pid;
+	int n;
 	char fname[256] = { 0 };
+	bool break_cond = false;
 	char *lineptr;
-	int line_cnt;
 	size_t line_size;
 	ssize_t ret;
-	char *ppid;
-	bool break_cond = false;
-
-	/* Current process's PID */
-	pid = getpid();
-	debug_out("cur pid: %d\n", (int)pid);
+	int ret2 = 0;
 
 	/* create file name */
-	n = snprintf(fname, 256, "/proc/%d/status", (int)pid);
+	n = snprintf(fname, 256, "/proc/%s/status", d->d_name);
 	if (n > 256) {
-		fprintf(stderr, "snprintf out of memory: %s\n",
-				strerror(errno));
-		return EXIT_FAILURE;
+		/* fprintf(stderr, "snprintf out of memory: %s\n",
+				strerror(errno)); */
+		return ret2;
 	}
-
-	debug_out("file name: %s\n", fname);
 
 	fp= fopen((const char *)fname, "r");
 	if (!fp)  {
-		fprintf(stderr, "Error opening file: %s\n", strerror(errno));
-		return EXIT_FAILURE;
+		/* fprintf(stderr, "Error opening file: %s\n", strerror(errno)); */
+		return ret2;
 	}
-
-	line_cnt = 0;
 
 	while (!break_cond) {
 		lineptr = NULL;
@@ -93,27 +61,47 @@ int main(int argc, char *argv[])
 		ret = getline(&lineptr, &line_size, fp);
 		if (ret == -1) {
 			if  (errno == EINVAL || errno == ENOMEM) {
-				fprintf(stderr, "getpid failed: %s\n",
-					strerror(errno));
-				free(lineptr);
-				return EXIT_FAILURE;
+				/* fprintf(stderr, "getpid failed: %s\n",
+					strerror(errno)); */
+				goto out;
 			}
 			
 			/* EOF --> break the cycle*/
 			break_cond = true;
 		}
 
-		debug_out("Line %d: \t\t%s", ++line_cnt, lineptr);
-
-		ppid = find_ppid(lineptr);
-		if (ppid != NULL)
-			break_cond = true;	
-
-		free(lineptr);
+		/* find NEEDLE_STR */
+		if (strcmp(lineptr, NEEDLE_STR) == 0) {
+			ret2 = 1;
+			goto out;
+		}
 	}
 
-	printf("%s\n", ppid);
+out:
+	free(lineptr);
+	fclose(fp);
 
-	return 0;
+	return ret2;
+}
+
+int main(int argc, char *argv[])
+{
+	int n, proc_cnt;
+	struct dirent **namelist;
+
+	n = scandir("/proc", &namelist, selector, alphasort);
+	if (n < 0) {
+		fprintf(stderr, "scandir() failed: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
+
+	proc_cnt = n;
+	while (n--)
+		free(namelist[n]);
+	free(namelist);
+
+	printf("%d\n", proc_cnt);
+
+	return EXIT_SUCCESS;
 }
 
