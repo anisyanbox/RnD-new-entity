@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,9 +12,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#define NEEDLE_STR	"Name:\tgenenv\n"
-#define NEEDLE_STR_LEN	(sizeof(NEEDLE_STR) - 1)
 
 static void debug_out(const char *fmt, ...)
 {
@@ -29,78 +27,119 @@ static void debug_out(const char *fmt, ...)
 #endif
 }
 
-static int selector(const struct dirent *d)
+static int check_input(int argc, char *argv[])
 {
-	FILE *fp;
-	int n;
-	char fname[256] = { 0 };
-	bool break_cond = false;
-	char *lineptr;
-	size_t line_size;
-	ssize_t ret;
-	int ret2 = 0;
+	int i;
+	int len;
+	char *str;
 
-	/* create file name */
-	n = snprintf(fname, 256, "/proc/%s/status", d->d_name);
-	if (n > 256) {
-		/* fprintf(stderr, "snprintf out of memory: %s\n",
-				strerror(errno)); */
-		return ret2;
+	if (argc == 2) {
+		str = argv[1];
+		len = strlen(str);
+
+		for (i = 0; i < len; ++i)
+			if (!isdigit(str[i]))
+				return 0;
 	}
 
-	fp= fopen((const char *)fname, "r");
-	if (!fp)  {
-		/* fprintf(stderr, "Error opening file: %s\n", strerror(errno)); */
-		return ret2;
+	return atoi(str);
+}
+
+static int get_ppid(pid_t pid)
+{
+#define NEEDLE_STR	"PPid:\t"
+#define NEEDLE_STR_LEN	(sizeof(NEEDLE_STR) - 1)
+
+	int i;
+	int n;
+
+	FILE *fp;
+
+	char *search_str;
+	char ppid_str[32];
+	char proc_fname[256];
+
+	bool break_cond = false;
+
+	char *lineptr;
+	size_t linesize;
+	ssize_t ret;
+
+	/* create process file name */
+	n = snprintf(proc_fname, 256, "/proc/%d/status", (int)pid);
+	if (n > 256) {
+		fprintf(stderr, "snpintf out of memory\n");
+		return -1;
+	}
+
+	debug_out("proc file name: %s\n", proc_fname);
+
+	fp = fopen(proc_fname, "r");
+	if (!fp) {
+		fprintf(stderr, "fopen() failed: %s", strerror(errno));
+		return -1;
 	}
 
 	while (!break_cond) {
 		lineptr = NULL;
-		line_size = 0;
+		linesize = 0;
 
-		ret = getline(&lineptr, &line_size, fp);
+		ret = getline(&lineptr, &linesize, fp);
 		if (ret == -1) {
 			if  (errno == EINVAL || errno == ENOMEM) {
-				/* fprintf(stderr, "getpid failed: %s\n",
-					strerror(errno)); */
-				goto out;
+				fprintf(stderr, "getline failed: %s\n",
+					strerror(errno));
+				free(lineptr);
+				return -1;
 			}
-			
+
 			/* EOF --> break the cycle*/
 			break_cond = true;
 		}
 
-		/* find NEEDLE_STR */
-		if (strcmp(lineptr, NEEDLE_STR) == 0) {
-			ret2 = 1;
-			goto out;
+		search_str = strstr((const char *)lineptr, NEEDLE_STR);
+		if (!search_str)
+			continue;
+
+		/* replace EOL to '\0' */
+		for (i = 0; i < 32; ++i) {
+			ppid_str[i] = lineptr[NEEDLE_STR_LEN + i];
+			if (ppid_str[i] == '\n') {
+				ppid_str[i] = '\0';
+				break_cond = true;
+				break;
+			}
 		}
+
+		free(lineptr);
 	}
 
-out:
-	free(lineptr);
 	fclose(fp);
 
-	return ret2;
+	return atoi(ppid_str);
 }
 
 int main(int argc, char *argv[])
 {
-	int n, proc_cnt;
-	struct dirent **namelist;
+	pid_t pid;
 
-	n = scandir("/proc", &namelist, selector, alphasort);
-	if (n < 0) {
-		fprintf(stderr, "scandir() failed: %s\n", strerror(errno));
+	pid = (pid_t)check_input(argc, argv);
+	if (pid == 0) {
+		fprintf(stderr, "wrong input args\n");
 		return EXIT_FAILURE;
 	}
 
-	proc_cnt = n;
-	while (n--)
-		free(namelist[n]);
-	free(namelist);
+	printf("%d\n", pid);
+	while (true) {
+		pid = get_ppid(pid);
+		if (pid <= 0)
+			return EXIT_FAILURE;
 
-	printf("%d\n", proc_cnt);
+		printf("%d\n", pid);
+
+		if (pid == 1)
+			break;
+	}
 
 	return EXIT_SUCCESS;
 }

@@ -2,7 +2,7 @@
 
 EXEC=solution
 SRC=solution.c
-CFLAGS=-DDEBUG_PROC
+CFLAGS=-DDEBUG_PROC -ggdb -o0
 
 all: $(EXEC)
 
