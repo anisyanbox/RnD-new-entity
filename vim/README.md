@@ -37,3 +37,11 @@ colorscheme your/color/scheme/name
  - Autocompletion: https://github.com/ycm-core/YouCompleteMe
  - Themes: https://github.com/rafi/awesome-vim-colorschemes
 
+### VIM without packages (plugins)
+
+VIM is enormous.
+We are able to do autocompletion, file searching and navigation(like the NERDTree),
+snippets and etc **without** any plugins.
+
+See https://gist.github.com/anisyanka/15dd5a5664509407b4f7c063b9fcaafe
+
