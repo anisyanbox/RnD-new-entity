@@ -21,3 +21,8 @@ out/
 
 # test files
 *.test
+
+# tag files
+tags
+TAGS
+
