@@ -1,6 +1,9 @@
 # vscode settings folder
 .vscode
 
+# vim files
+*.swp
+
 # executable files
 *.a
 *.exe
