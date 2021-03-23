@@ -45,3 +45,7 @@ snippets and etc **without** any plugins.
 
 See https://gist.github.com/anisyanka/15dd5a5664509407b4f7c063b9fcaafe
 
+### Windows splitting
+
+- `<Ctrl>+<w> then press <v>` or `:vsplit` - split a window vertically
+- `<Ctrl>+<w> then press <s>` or `:split` - split a window horizontally
