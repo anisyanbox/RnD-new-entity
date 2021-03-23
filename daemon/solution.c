@@ -3,8 +3,15 @@
 #include <string.h>
 #include <stdbool.h>
 #include <sys/types.h>
+#include <signal.h>
 #include <errno.h>
 #include <unistd.h>
+
+static void sigusr_handler(int signum)
+{
+	if (signum == SIGURG)
+		exit(EXIT_SUCCESS);
+}
 
 int main(int argc, char *argv[])
 {
@@ -24,6 +31,9 @@ int main(int argc, char *argv[])
 	} else {
 		/* child */
 		printf("%d\n", (int)getpid());
+
+		/* add signal to finish the daemon */
+		signal(SIGURG, sigusr_handler);
 
 		/* this child will be a group leader in a new process's group */
 		if (setsid() == -1) {
