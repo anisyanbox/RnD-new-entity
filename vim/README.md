@@ -36,6 +36,7 @@ colorscheme your/color/scheme/name
  - File system explorer: https://github.com/preservim/nerdtree
  - Autocompletion: https://github.com/ycm-core/YouCompleteMe
  - Themes: https://github.com/rafi/awesome-vim-colorschemes
+ - Package manager for VIM: https://github.com/VundleVim/Vundle.vim
 
 ### VIM without packages (plugins)
 
